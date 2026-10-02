@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="application-name" content="One-Line Journal">
+<meta name="description" content="One line a day. Save today's thought and keep a streak going.">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>One-Line Journal</title>
+<style>
+:root{--accent:#F59E0B;--bg:#100C06;--card:#1A130A;--text:#FBF3E4;--dim:#D8C39A}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100dvh;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.app{width:min(480px,100vw - 24px);height:100dvh;max-height:780px;display:flex;flex-direction:column;padding:16px 14px 12px;gap:12px}
+h1{font-size:20px;color:var(--accent);text-align:center;letter-spacing:.5px}
+.streak{text-align:center;font-size:18px;font-weight:700}
+.today{font-size:14px;color:var(--dim);text-align:center}
+.card{background:var(--card);border:1px solid #3A2C12;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card input{min-height:56px;font-size:17px;border-radius:12px;border:1px solid #4A3A1A;background:#100C06;color:var(--text);padding:0 14px;font-family:inherit;-webkit-user-select:text;user-select:text}
+button.save{min-height:56px;font-size:18px;font-weight:700;border-radius:14px;border:none;background:var(--accent);color:#1A1206}
+.saved{font-size:13px;color:var(--accent);text-align:center;min-height:18px}
+h2{font-size:15px;color:var(--dim);letter-spacing:.5px}
+.history{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-bottom:4px}
+.entry{background:var(--card);border:1px solid #3A2C12;border-radius:12px;padding:10px 12px}
+.entry .d{font-size:12px;color:var(--accent);font-weight:700;margin-bottom:2px}
+.entry .x{font-size:15px;line-height:1.4}
+.empty{font-size:14px;color:var(--dim);text-align:center;padding:12px}
+button[data-focusable]:focus-visible,input[data-focusable]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>One-Line Journal</h1>
+  <div class="streak" id="streak">🔥 0 day streak</div>
+  <div class="today" id="todayline"></div>
+  <div class="card">
+    <input type="text" id="entry" data-focusable maxlength="200" placeholder="One line about today…" autocomplete="off">
+    <button class="save" id="save" data-focusable>Save today's line</button>
+    <div class="saved" id="saved"></div>
+  </div>
+  <h2>Recent entries</h2>
+  <div class="history" id="history"></div>
+</div>
+<script>
+(function(){"use strict";
+var KEY="one-line-journal-v1";
+var entryEl=document.getElementById('entry');
+var saveBtn=document.getElementById('save');
+var savedEl=document.getElementById('saved');
+var streakEl=document.getElementById('streak');
+var historyEl=document.getElementById('history');
+var todaylineEl=document.getElementById('todayline');
+
+function keyOf(d){
+  var m=("0"+(d.getMonth()+1)).slice(-2);
+  var day=("0"+d.getDate()).slice(-2);
+  return d.getFullYear()+"-"+m+"-"+day;
+}
+function prettyKey(k){
+  var p=k.split("-");
+  var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));
+  return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+}
+function load(){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(!raw)return {entries:{}};
+    var o=JSON.parse(raw);
+    if(!o||typeof o.entries!=="object")return {entries:{}};
+    return o;
+  }catch(e){return {entries:{}};}
+}
+function store(data){
+  try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}
+}
+function streak(entries){
+  var n=0;var d=new Date();
+  if(!(entries[keyOf(d)]||"").trim())d.setDate(d.getDate()-1);
+  while((entries[keyOf(d)]||"").trim()){n++;d.setDate(d.getDate()-1);}
+  return n;
+}
+function refresh(){
+  var data=load();
+  var s=streak(data.entries);
+  streakEl.textContent="🔥 "+s+" day streak";
+  todaylineEl.textContent=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  entryEl.value=data.entries[keyOf(new Date())]||"";
+  var keys=Object.keys(data.entries)
+    .filter(function(k){return (data.entries[k]||"").trim();})
+    .sort().reverse();
+  historyEl.innerHTML="";
+  if(!keys.length){
+    var e=document.createElement("div");e.className="empty";e.textContent="No entries yet — write your first line above.";
+    historyEl.appendChild(e);return;
+  }
+  keys.forEach(function(k){
+    var wrap=document.createElement("div");wrap.className="entry";
+    var d=document.createElement("div");d.className="d";d.textContent=prettyKey(k);
+    var x=document.createElement("div");x.className="x";x.textContent=data.entries[k];
+    wrap.appendChild(d);wrap.appendChild(x);historyEl.appendChild(wrap);
+  });
+}
+saveBtn.addEventListener("click",function(){
+  var data=load();
+  data.entries[keyOf(new Date())]=entryEl.value.trim();
+  store(data);
+  savedEl.textContent="Saved ✓";
+  setTimeout(function(){savedEl.textContent="";},2000);
+  refresh();
+});
+
+function focusables(){
+  return Array.prototype.slice.call(document.querySelectorAll("[data-focusable]"))
+    .filter(function(el){return !el.disabled && el.offsetParent!==null;});
+}
+document.addEventListener("keydown",function(e){
+  if(e.key==="Enter"&&document.activeElement===entryEl)return;
+  var list=focusables();
+  if(!list.length)return;
+  var i=list.indexOf(document.activeElement);
+  if(e.key==="ArrowRight"||e.key==="ArrowDown"){
+    e.preventDefault();
+    list[(i+1+list.length)%list.length].focus();
+  }else if(e.key==="ArrowLeft"||e.key==="ArrowUp"){
+    e.preventDefault();
+    list[(i-1+list.length)%list.length].focus();
+  }
+});
+refresh();
+})();
+</script>
+</body>
+</html>
